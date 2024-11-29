@@ -2,9 +2,6 @@
 
 <p id="description">This repository demonstrates how to deploy a Amazon EKS (Elastic Kubernetes Service) using Terraform for infrastructure management Amazon ECR (Elastic Container Registry) for container image storage and GitHub Actions for CI/CD (Continuous Integration/Continuous Deployment) automation.</p>
 
-
-# <a name="_toc172059415"></a>Infrastructure Deployment
-
 # <a name="_toc172059414"></a>Prerequisite
 
 - GithubAccount
