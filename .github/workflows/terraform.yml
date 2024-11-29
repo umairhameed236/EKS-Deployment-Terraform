@@ -1,0 +1,163 @@
+
+name: 'Terraform'
+
+on:
+  push:
+    branches: [ "Infrastructure" ]
+  pull_request:
+
+permissions:
+  contents: read  # Permissions to read repository contents
+
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    environment: production
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      # Checkout the repository to the GitHub Actions runner
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Set up AWS credentials from GitHub secrets
+      - name: Set up AWS credentials
+        run: |
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          soft_fail: true
+        
+
+      # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      # Initialize the Terraform working directory
+      - name: Terraform Init
+        run: terraform init
+
+
+      # Generate an execution plan for Terraform
+      - name: Terraform Plan
+        run: terraform plan -input=false
+  manual-approval:
+    name: Manual Approval
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    if: success() # Only proceed if terraform-plan job succeeds
+    
+    permissions:
+      issues: write
+
+    steps:
+      - name: Await Manual Approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: umairhameed236 # Replace with GitHub usernames, with the free version you can only have an issue assigned to one username
+          minimum-approvals: 1
+          issue-title: "Manual Approval Required for Terraform Apply"
+          issue-body: "Please approve or deny the deployment."
+
+  terraform-apply:
+    runs-on: ubuntu-latest
+    environment: production
+    needs: manual-approval
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      # Checkout the repository to the GitHub Actions runner
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Set up AWS credentials from GitHub secrets
+      - name: Set up AWS credentials
+        run: |
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+
+
+        
+
+      # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      # Initialize the Terraform working directory
+      - name: Terraform Init
+        run: terraform init
+
+
+      # Generate infrastrucure
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+  destroy-approval:
+    name: destroy Approval
+    runs-on: ubuntu-latest
+    needs: terraform-apply
+    if: success() # Only proceed if terraform-apply job succeeds
+    
+    permissions:
+      issues: write
+
+    steps:
+      - name: Await Manual Approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: umairhameed236 # Replace with GitHub usernames, with the free version you can only have an issue assigned to one username
+          minimum-approvals: 1
+          issue-title: "Manual Approval Required for Terraform Destroy"
+          issue-body: "Please approve or deny the deployment."
+
+  terraform-destroy:
+      runs-on: ubuntu-latest
+      environment: production
+      needs: destroy-approval
+  
+      defaults:
+        run:
+          shell: bash
+  
+      steps:
+        # Checkout the repository to the GitHub Actions runner
+        - name: Checkout
+          uses: actions/checkout@v4
+  
+        # Set up AWS credentials from GitHub secrets
+        - name: Set up AWS credentials
+          run: |
+            echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+            echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          
+        # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
+        - name: Setup Terraform
+          uses: hashicorp/setup-terraform@v1
+          with:
+            cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+  
+        # Initialize the Terraform working directory
+        - name: Terraform Init
+          run: terraform init
+  
+  
+        # Generate infrastrucure
+        - name: Terraform destroy
+          run: terraform destroy -auto-approve
+      
+  
